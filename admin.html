@@ -1,0 +1,336 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lock Cash Admin</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f5f2;
+      color: #10231b;
+      margin: 0;
+      padding: 20px;
+    }
+
+    main {
+      max-width: 1000px;
+      margin: auto;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      margin: 18px 0;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #0001;
+    }
+
+    h1, h2 { color: #0f5c43; }
+
+    button, select, input {
+      font: inherit;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 6px;
+    }
+
+    button {
+      background: #0f5c43;
+      color: white;
+      border: 0;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: .5; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 700px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+
+    input { width: 110px; }
+
+    .scroll { overflow-x: auto; }
+
+    #message { white-space: pre-wrap; }
+
+    .error { color: #b3261e; }
+    .success { color: #0f5c43; }
+  </style>
+</head>
+
+<body>
+<main>
+  <h1>Lock Cash Admin</h1>
+  <p>Administrator dashboard</p>
+
+  <div class="card">
+    <strong id="admin-name">Checking administrator access...</strong>
+    <button id="logout">Log out</button>
+    <p id="message"></p>
+  </div>
+
+  <section id="dashboard" hidden>
+    <div class="card">
+      <h2>Registered users</h2>
+      <label for="users">Select a user:</label>
+      <select id="users">
+        <option value="">Loading users...</option>
+      </select>
+      <button id="load-user">View savings</button>
+    </div>
+
+    <div class="card">
+      <h2>User savings</h2>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Amount (KSh)</th>
+              <th>M-Pesa code</th>
+              <th>Due date</th>
+              <th>Status</th>
+              <th>Save correction</th>
+            </tr>
+          </thead>
+          <tbody id="savings"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(async () => {
+  const cfg = window.LOCKCASH_CONFIG || {};
+  const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  const message = document.getElementById('message');
+  const adminName = document.getElementById('admin-name');
+  const dashboard = document.getElementById('dashboard');
+  const usersSelect = document.getElementById('users');
+  const savingsBody = document.getElementById('savings');
+
+  let selectedUser = '';
+
+  function showMessage(text, error = false) {
+    message.textContent = text;
+    message.className = error ? 'error' : 'success';
+  }
+
+  function phoneFromEmail(email) {
+    const match = email.match(/^(\d+)@lockcash\.app$/i);
+    if (!match) return email;
+    let p = match[1];
+    if (p.startsWith('254')) p = '0' + p.slice(3);
+    return p;
+  }
+
+  // Require an authenticated user
+  const { data: sessionData } = await sb.auth.getSession();
+  const user = sessionData.session?.user;
+
+  if (!user) {
+    location.replace('login.html');
+    return;
+  }
+
+  // Verify administrator access with Supabase
+  const { data: isAdmin, error: adminError } =
+    await sb.rpc('is_admin');
+
+  if (adminError || !isAdmin) {
+    adminName.textContent = 'Access denied';
+    showMessage('This account is not an administrator.', true);
+    await sb.auth.signOut();
+    return;
+  }
+
+  adminName.textContent = 'Administrator: ' +
+    (user.user_metadata?.name || user.email);
+
+  dashboard.hidden = false;
+
+  // Load registered users
+  async function loadUsers() {
+    showMessage('Loading users...');
+
+    const { data, error } = await sb.rpc('admin_list_users');
+
+    if (error) {
+      showMessage(error.message, true);
+      return;
+    }
+
+    usersSelect.innerHTML = '';
+
+    data.forEach(u => {
+      const option = document.createElement('option');
+      option.value = u.id;
+      option.textContent =
+        phoneFromEmail(u.email || '') + ' — ' +
+        (u.email || u.id);
+      usersSelect.appendChild(option);
+    });
+
+    showMessage('Loaded ' + data.length + ' users.');
+  }
+
+  // Load savings for selected user
+  async function loadSavings() {
+    selectedUser = usersSelect.value;
+
+    if (!selectedUser) {
+      showMessage('Select a user first.', true);
+      return;
+    }
+
+    showMessage('Loading savings...');
+    savingsBody.innerHTML = '';
+
+    const { data, error } = await sb
+      .from('savings')
+      .select('id,user_id,amount,code,due,saved_at,withdrawn_at')
+      .eq('user_id', selectedUser)
+      .order('saved_at', { ascending: true });
+
+    if (error) {
+      showMessage(error.message, true);
+      return;
+    }
+
+    if (!data.length) {
+      showMessage('This user has no savings records.');
+      return;
+    }
+
+    data.forEach(record => {
+      const tr = document.createElement('tr');
+
+      const amount = document.createElement('input');
+      amount.type = 'number';
+      amount.min = '1';
+      amount.max = '250000';
+      amount.value = record.amount;
+
+      const due = document.createElement('input');
+      due.type = 'date';
+      due.value = record.due;
+
+      const codeCell = document.createElement('td');
+      codeCell.textContent = record.code;
+
+      const statusCell = document.createElement('td');
+      statusCell.textContent = record.withdrawn_at
+        ? 'Withdrawn'
+        : 'Active';
+
+      const amountCell = document.createElement('td');
+      amountCell.appendChild(amount);
+
+      const dueCell = document.createElement('td');
+      dueCell.appendChild(due);
+
+      const saveCell = document.createElement('td');
+      const save = document.createElement('button');
+      save.textContent = 'Save';
+
+      save.onclick = async () => {
+        const newAmount = Number(amount.value);
+        const newDue = due.value;
+
+        if (!Number.isInteger(newAmount) ||
+            newAmount < 1 || newAmount > 250000) {
+          showMessage('Amount must be between 1 and 250,000.', true);
+          return;
+        }
+
+        if (!newDue) {
+          showMessage('Enter a valid due date.', true);
+          return;
+        }
+
+        if (record.withdrawn_at) {
+          showMessage('Withdrawn savings cannot be edited.', true);
+          return;
+        }
+
+        if (!confirm(
+          'Correct savings record #' + record.id +
+          ' to KSh ' + newAmount +
+          ' with due date ' + newDue + '?'
+        )) return;
+
+        save.disabled = true;
+
+        const { error: updateError } = await sb
+          .from('savings')
+          .update({
+            amount: newAmount,
+            due: newDue
+          })
+          .eq('id', record.id)
+          .eq('user_id', selectedUser)
+          .is('withdrawn_at', null);
+
+        save.disabled = false;
+
+        if (updateError) {
+          showMessage('Update failed: ' + updateError.message, true);
+          return;
+        }
+
+        record.amount = newAmount;
+        record.due = newDue;
+
+        showMessage('Savings record corrected successfully.');
+      };
+
+      saveCell.appendChild(save);
+
+      const idCell = document.createElement('td');
+      idCell.textContent = record.id;
+
+      tr.append(
+        idCell,
+        amountCell,
+        codeCell,
+        dueCell,
+        statusCell,
+        saveCell
+      );
+
+      savingsBody.appendChild(tr);
+    });
+
+    showMessage('Loaded ' + data.length + ' savings records.');
+  }
+
+  document.getElementById('load-user')
+    .addEventListener('click', loadSavings);
+
+  document.getElementById('logout')
+    .addEventListener('click', async () => {
+      await sb.auth.signOut();
+      location.replace('login.html');
+    });
+
+  await loadUsers();
+})();
+</script>
+</body>
+</html>
