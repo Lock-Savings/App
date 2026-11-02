@@ -19,7 +19,7 @@
     }
 
     main {
-      max-width: 1000px;
+      max-width: 1100px;
       margin: auto;
     }
 
@@ -47,33 +47,58 @@
       cursor: pointer;
     }
 
-    button:disabled { opacity: .5; }
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .reject {
+      background: #b3261e;
+    }
+
+    .scroll {
+      overflow-x: auto;
+    }
 
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 700px;
+      min-width: 1100px;
     }
 
     th, td {
       text-align: left;
       padding: 10px;
       border-bottom: 1px solid #ddd;
+      vertical-align: top;
     }
 
-    input { width: 110px; }
+    input {
+      width: 110px;
+      box-sizing: border-box;
+    }
 
-    .scroll { overflow-x: auto; }
-
-    #message { white-space: pre-wrap; }
+    #message {
+      white-space: pre-wrap;
+    }
 
     .error { color: #b3261e; }
     .success { color: #0f5c43; }
+
+    .pending { color: #a66300; font-weight: bold; }
+    .verified { color: #0f7a43; font-weight: bold; }
+    .rejected { color: #b3261e; font-weight: bold; }
+
+    .small {
+      font-size: 12px;
+      color: #666;
+    }
   </style>
 </head>
 
 <body>
 <main>
+
   <h1>Lock Cash Admin</h1>
   <p>Administrator dashboard</p>
 
@@ -84,40 +109,60 @@
   </div>
 
   <section id="dashboard" hidden>
+
     <div class="card">
       <h2>Registered users</h2>
+
       <label for="users">Select a user:</label>
+
       <select id="users">
         <option value="">Loading users...</option>
       </select>
+
       <button id="load-user">View savings</button>
     </div>
 
     <div class="card">
-      <h2>User savings</h2>
+      <h2>User savings and payment verification</h2>
+
+      <p class="small">
+        Verify payments only after checking the actual Safaricom
+        confirmation SMS.
+      </p>
+
       <div class="scroll">
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Record ID</th>
               <th>Amount (KSh)</th>
               <th>M-Pesa code</th>
               <th>Due date</th>
-              <th>Status</th>
+              <th>Savings status</th>
+              <th>Payment status</th>
+              <th>Verification</th>
               <th>Save correction</th>
             </tr>
           </thead>
+
           <tbody id="savings"></tbody>
         </table>
       </div>
     </div>
+
   </section>
+
 </main>
 
 <script>
 (async () => {
+
   const cfg = window.LOCKCASH_CONFIG || {};
-  const sb = window.supabase.createClient(cfg.url, cfg.anonKey);
+
+  const sb = window.supabase.createClient(
+    cfg.url,
+    cfg.anonKey
+  );
 
   const message = document.getElementById('message');
   const adminName = document.getElementById('admin-name');
@@ -134,14 +179,33 @@
 
   function phoneFromEmail(email) {
     const match = email.match(/^(\d+)@lockcash\.app$/i);
+
     if (!match) return email;
-    let p = match[1];
-    if (p.startsWith('254')) p = '0' + p.slice(3);
-    return p;
+
+    let phone = match[1];
+
+    if (phone.startsWith('254')) {
+      phone = '0' + phone.slice(3);
+    }
+
+    return phone;
   }
 
-  // Require an authenticated user
-  const { data: sessionData } = await sb.auth.getSession();
+  function makeCell(text) {
+    const cell = document.createElement('td');
+    cell.textContent = text ?? '';
+    return cell;
+  }
+
+  // Check authentication
+  const { data: sessionData, error: sessionError } =
+    await sb.auth.getSession();
+
+  if (sessionError) {
+    showMessage(sessionError.message, true);
+    return;
+  }
+
   const user = sessionData.session?.user;
 
   if (!user) {
@@ -149,27 +213,37 @@
     return;
   }
 
-  // Verify administrator access with Supabase
+  // Check admin permissions
   const { data: isAdmin, error: adminError } =
     await sb.rpc('is_admin');
 
   if (adminError || !isAdmin) {
     adminName.textContent = 'Access denied';
-    showMessage('This account is not an administrator.', true);
+
+    showMessage(
+      'This account is not an administrator.',
+      true
+    );
+
     await sb.auth.signOut();
+
+    location.replace('login.html');
     return;
   }
 
-  adminName.textContent = 'Administrator: ' +
+  adminName.textContent =
+    'Administrator: ' +
     (user.user_metadata?.name || user.email);
 
   dashboard.hidden = false;
 
-  // Load registered users
+  // Load users
   async function loadUsers() {
+
     showMessage('Loading users...');
 
-    const { data, error } = await sb.rpc('admin_list_users');
+    const { data, error } =
+      await sb.rpc('admin_list_users');
 
     if (error) {
       showMessage(error.message, true);
@@ -178,20 +252,35 @@
 
     usersSelect.innerHTML = '';
 
-    data.forEach(u => {
+    const firstOption = document.createElement('option');
+    firstOption.value = '';
+    firstOption.textContent = 'Select a user';
+
+    usersSelect.appendChild(firstOption);
+
+    (data || []).forEach(u => {
+
       const option = document.createElement('option');
+
       option.value = u.id;
+
       option.textContent =
-        phoneFromEmail(u.email || '') + ' — ' +
+        phoneFromEmail(u.email || '') +
+        ' — ' +
         (u.email || u.id);
+
       usersSelect.appendChild(option);
+
     });
 
-    showMessage('Loaded ' + data.length + ' users.');
+    showMessage(
+      'Loaded ' + (data || []).length + ' users.'
+    );
   }
 
   // Load savings for selected user
   async function loadSavings() {
+
     selectedUser = usersSelect.value;
 
     if (!selectedUser) {
@@ -200,11 +289,14 @@
     }
 
     showMessage('Loading savings...');
+
     savingsBody.innerHTML = '';
 
     const { data, error } = await sb
       .from('savings')
-      .select('id,user_id,amount,code,due,saved_at,withdrawn_at')
+      .select(
+        'id,user_id,amount,code,due,saved_at,withdrawn_at,payment_status,verified_at,verified_by,rejection_reason'
+      )
       .eq('user_id', selectedUser)
       .order('saved_at', { ascending: true });
 
@@ -213,97 +305,390 @@
       return;
     }
 
-    if (!data.length) {
+    if (!data || data.length === 0) {
       showMessage('This user has no savings records.');
       return;
     }
 
     data.forEach(record => {
+
       const tr = document.createElement('tr');
 
+      // Record ID
+      const idCell = makeCell(record.id);
+
+      // Amount editor
       const amount = document.createElement('input');
+
       amount.type = 'number';
       amount.min = '1';
       amount.max = '250000';
+      amount.step = '1';
       amount.value = record.amount;
-
-      const due = document.createElement('input');
-      due.type = 'date';
-      due.value = record.due;
-
-      const codeCell = document.createElement('td');
-      codeCell.textContent = record.code;
-
-      const statusCell = document.createElement('td');
-      statusCell.textContent = record.withdrawn_at
-        ? 'Withdrawn'
-        : 'Active';
 
       const amountCell = document.createElement('td');
       amountCell.appendChild(amount);
 
+      // M-Pesa transaction code
+      const codeCell = makeCell(record.code);
+
+      // Due date editor
+      const due = document.createElement('input');
+
+      due.type = 'date';
+      due.value = record.due || '';
+
       const dueCell = document.createElement('td');
       dueCell.appendChild(due);
 
-      const saveCell = document.createElement('td');
-      const save = document.createElement('button');
-      save.textContent = 'Save';
+      // Savings status
+      const statusCell = makeCell(
+        record.withdrawn_at ? 'Withdrawn' : 'Active'
+      );
 
-      save.onclick = async () => {
+      // Payment status
+      const paymentStatus =
+        record.payment_status || 'pending';
+
+      const paymentCell = makeCell(paymentStatus);
+
+      paymentCell.className = paymentStatus;
+
+      if (record.verified_at) {
+
+        const dateText = document.createElement('div');
+
+        dateText.className = 'small';
+
+        dateText.textContent =
+          'Verified: ' +
+          new Date(record.verified_at).toLocaleString();
+
+        paymentCell.appendChild(dateText);
+      }
+
+      if (record.rejection_reason) {
+
+        const reason = document.createElement('div');
+
+        reason.className = 'small';
+
+        reason.textContent =
+          'Reason: ' + record.rejection_reason;
+
+        paymentCell.appendChild(reason);
+      }
+
+      // Payment verification buttons
+      const verifyCell = document.createElement('td');
+
+      const verifyButton = document.createElement('button');
+
+      verifyButton.textContent = 'Verify Payment';
+
+      const rejectButton = document.createElement('button');
+
+      rejectButton.textContent = 'Reject';
+      rejectButton.className = 'reject';
+
+      // Withdrawn records cannot be verified or rejected here
+      if (record.withdrawn_at) {
+
+        verifyButton.disabled = true;
+        rejectButton.disabled = true;
+
+      }
+
+      if (paymentStatus === 'verified') {
+
+        verifyButton.disabled = true;
+        rejectButton.disabled = true;
+
+      }
+
+      verifyButton.onclick = async () => {
+
+        if (record.withdrawn_at) {
+          showMessage(
+            'Withdrawn savings cannot be verified.',
+            true
+          );
+          return;
+        }
+
+        if (record.payment_status === 'verified') {
+          showMessage('Payment already verified.');
+          return;
+        }
+
+        const confirmed = confirm(
+          'Have you checked the genuine Safaricom SMS?\n\n' +
+          'Confirm that the transaction code, amount and sender ' +
+          'match this savings record.\n\n' +
+          'Transaction: ' + record.code + '\n' +
+          'Amount: KSh ' + record.amount + '\n\n' +
+          'Verify this payment?'
+        );
+
+        if (!confirmed) return;
+
+        verifyButton.disabled = true;
+
+        const { data: updatedRows, error: updateError } =
+          await sb
+            .from('savings')
+            .update({
+              payment_status: 'verified',
+              verified_at: new Date().toISOString(),
+              verified_by: user.id,
+              rejection_reason: null
+            })
+            .eq('id', record.id)
+            .eq('user_id', selectedUser)
+            .neq('payment_status', 'verified')
+            .is('withdrawn_at', null)
+            .select('id');
+
+        verifyButton.disabled = false;
+
+        if (updateError) {
+
+          showMessage(
+            'Verification failed: ' + updateError.message,
+            true
+          );
+
+          return;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+
+          showMessage(
+            'No record updated. It may already be verified or withdrawn.',
+            true
+          );
+
+          await loadSavings();
+
+          return;
+        }
+
+        record.payment_status = 'verified';
+
+        record.verified_at = new Date().toISOString();
+
+        paymentCell.textContent = 'verified';
+
+        paymentCell.className = 'verified';
+
+        verifyButton.disabled = true;
+        rejectButton.disabled = true;
+
+        showMessage(
+          'Payment verified successfully.'
+        );
+
+      };
+
+      rejectButton.onclick = async () => {
+
+        if (record.withdrawn_at) {
+          showMessage(
+            'Withdrawn savings cannot be rejected.',
+            true
+          );
+          return;
+        }
+
+        if (record.payment_status === 'verified') {
+          showMessage(
+            'Verified payments cannot be rejected here.',
+            true
+          );
+          return;
+        }
+
+        const reason = prompt(
+          'Why are you rejecting this payment?'
+        );
+
+        if (!reason || !reason.trim()) {
+          showMessage(
+            'A rejection reason is required.',
+            true
+          );
+          return;
+        }
+
+        const confirmed = confirm(
+          'Reject payment ' + record.code + '?\n\n' +
+          'Reason: ' + reason
+        );
+
+        if (!confirmed) return;
+
+        rejectButton.disabled = true;
+
+        const { data: updatedRows, error: updateError } =
+          await sb
+            .from('savings')
+            .update({
+              payment_status: 'rejected',
+              verified_at: null,
+              verified_by: user.id,
+              rejection_reason: reason.trim()
+            })
+            .eq('id', record.id)
+            .eq('user_id', selectedUser)
+            .neq('payment_status', 'verified')
+            .is('withdrawn_at', null)
+            .select('id');
+
+        rejectButton.disabled = false;
+
+        if (updateError) {
+
+          showMessage(
+            'Rejection failed: ' + updateError.message,
+            true
+          );
+
+          return;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+
+          showMessage(
+            'No record updated. It may already be verified or withdrawn.',
+            true
+          );
+
+          await loadSavings();
+
+          return;
+        }
+
+        record.payment_status = 'rejected';
+
+        record.rejection_reason = reason.trim();
+
+        paymentCell.textContent = 'rejected';
+
+        paymentCell.className = 'rejected';
+
+        verifyButton.disabled = false;
+
+        showMessage('Payment rejected successfully.');
+
+      };
+
+      verifyCell.append(
+        verifyButton,
+        document.createElement('br'),
+        rejectButton
+      );
+
+      // Savings correction button
+      const saveCell = document.createElement('td');
+
+      const saveButton = document.createElement('button');
+
+      saveButton.textContent = 'Save correction';
+
+      saveButton.onclick = async () => {
+
         const newAmount = Number(amount.value);
+
         const newDue = due.value;
 
-        if (!Number.isInteger(newAmount) ||
-            newAmount < 1 || newAmount > 250000) {
-          showMessage('Amount must be between 1 and 250,000.', true);
+        if (
+          !Number.isInteger(newAmount) ||
+          newAmount < 1 ||
+          newAmount > 250000
+        ) {
+
+          showMessage(
+            'Amount must be between 1 and 250,000.',
+            true
+          );
+
           return;
         }
 
         if (!newDue) {
-          showMessage('Enter a valid due date.', true);
+
+          showMessage(
+            'Enter a valid due date.',
+            true
+          );
+
           return;
         }
 
         if (record.withdrawn_at) {
-          showMessage('Withdrawn savings cannot be edited.', true);
+
+          showMessage(
+            'Withdrawn savings cannot be edited.',
+            true
+          );
+
           return;
         }
 
-        if (!confirm(
+        const confirmed = confirm(
           'Correct savings record #' + record.id +
-          ' to KSh ' + newAmount +
-          ' with due date ' + newDue + '?'
-        )) return;
+          '?\n\nNew amount: KSh ' + newAmount +
+          '\nNew due date: ' + newDue
+        );
 
-        save.disabled = true;
+        if (!confirmed) return;
 
-        const { error: updateError } = await sb
-          .from('savings')
-          .update({
-            amount: newAmount,
-            due: newDue
-          })
-          .eq('id', record.id)
-          .eq('user_id', selectedUser)
-          .is('withdrawn_at', null);
+        saveButton.disabled = true;
 
-        save.disabled = false;
+        const { data: updatedRows, error: updateError } =
+          await sb
+            .from('savings')
+            .update({
+              amount: newAmount,
+              due: newDue
+            })
+            .eq('id', record.id)
+            .eq('user_id', selectedUser)
+            .is('withdrawn_at', null)
+            .select('id');
+
+        saveButton.disabled = false;
 
         if (updateError) {
-          showMessage('Update failed: ' + updateError.message, true);
+
+          showMessage(
+            'Update failed: ' + updateError.message,
+            true
+          );
+
+          return;
+        }
+
+        if (!updatedRows || updatedRows.length === 0) {
+
+          showMessage(
+            'No record updated. It may already be withdrawn.',
+            true
+          );
+
           return;
         }
 
         record.amount = newAmount;
         record.due = newDue;
 
-        showMessage('Savings record corrected successfully.');
+        showMessage(
+          'Savings record corrected successfully.'
+        );
+
       };
 
-      saveCell.appendChild(save);
-
-      const idCell = document.createElement('td');
-      idCell.textContent = record.id;
+      saveCell.appendChild(saveButton);
 
       tr.append(
         idCell,
@@ -311,13 +696,19 @@
         codeCell,
         dueCell,
         statusCell,
+        paymentCell,
+        verifyCell,
         saveCell
       );
 
       savingsBody.appendChild(tr);
+
     });
 
-    showMessage('Loaded ' + data.length + ' savings records.');
+    showMessage(
+      'Loaded ' + data.length + ' savings records.'
+    );
+
   }
 
   document.getElementById('load-user')
@@ -325,12 +716,17 @@
 
   document.getElementById('logout')
     .addEventListener('click', async () => {
+
       await sb.auth.signOut();
+
       location.replace('login.html');
+
     });
 
   await loadUsers();
+
 })();
 </script>
+
 </body>
 </html>
