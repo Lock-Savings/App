@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f5c43">
+  <title>Home Page</title>
+  <style>
+    :root {
+      --bg: #f2f5f2; --surface: #ffffff; --surface-2: #eaf0ec;
+      --ink: #10231b; --muted: #5a6b62; --line: #dbe3dd;
+      --brand: #0f5c43; --brand-dark: #0a3f2f; --on-brand: #ffffff;
+      --gold: #f2a30f; --gold-soft: #fff3d6; --gold-ink: #6a4500; --danger: #b3261e;
+      --radius: 18px; --shadow: 0 1px 2px rgb(16 35 27 / .06), 0 10px 30px rgb(16 35 27 / .07);
+      --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color-scheme: light;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0b1310; --surface: #131e19; --surface-2: #1a2822;
+        --ink: #e8f1ec; --muted: #94a99d; --line: #25352d;
+        --brand: #3fbf8c; --on-brand: #06241a;
+        --gold: #f5b73d; --gold-soft: #3a2d0e; --gold-ink: #f6d58a; --danger: #ff8a80;
+        --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 10px 30px rgb(0 0 0 / .35);
+        color-scheme: dark;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--font); }
+    h1, h2, h3, p, ol { margin: 0; }
+
+    /* ---------- top bar ---------- */
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--line); }
+    .bar { max-width: 760px; margin: 0 auto; padding: 12px 16px; min-height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; font-size: 1.15rem; letter-spacing: -.01em; white-space: nowrap; }
+    .brand svg { width: 34px; height: 34px; flex: none; }
+
+    /* ---------- page ---------- */
+    main { max-width: 760px; margin: 0 auto; padding: 24px 16px 56px; display: grid; gap: 20px; }
+    main > * { min-width: 0; }   /* lets the records table scroll inside its card instead of widening the page */
+    .greeting { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 750; letter-spacing: -.02em; line-height: 1.2; }
+    .sub { color: var(--muted); margin-top: 4px; }
+
+    /* ---------- buttons ---------- */
+    button {
+      appearance: none; font: inherit; font-weight: 650; cursor: pointer;
+      min-height: 48px; padding: 12px 20px; border-radius: 14px; border: 1.5px solid transparent;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      transition: transform .06s ease, background-color .15s ease, border-color .15s ease;
+    }
+    button:active { transform: translateY(1px); }
+    button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+    button svg { width: 18px; height: 18px; flex: none; }
+    .btn-primary { background: #ffffff; color: var(--brand-dark); }
+    .btn-primary:hover { background: #e7f3ec; }
+    .btn-outline { background: transparent; color: #ffffff; border-color: rgb(255 255 255 / .45); }
+    .btn-outline:hover { background: rgb(255 255 255 / .12); }
+    .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); min-height: 40px; padding: 8px 16px; font-size: .92rem; }
+    .btn-ghost:hover { background: var(--surface-2); }
+    .btn-solid { background: var(--brand); color: var(--on-brand); }
+    .btn-solid:hover { filter: brightness(1.08); }
+    .btn-plain { background: transparent; color: var(--ink); border-color: var(--line); }
+    .btn-plain:hover { background: var(--surface-2); }
+
+    /* ---------- balance card ---------- */
+    .hero {
+      background: radial-gradient(120% 140% at 100% 0%, #1b8a64 0%, rgb(15 92 67 / 0) 55%), linear-gradient(150deg, #0f5c43, #0a3f2f);
+      color: #fff; border-radius: 24px; padding: 24px; box-shadow: var(--shadow); display: grid; gap: 20px;
+    }
+    .chip { justify-self: start; display: inline-flex; align-items: center; gap: 8px; background: rgb(255 255 255 / .14); border-radius: 999px; padding: 6px 14px; font-size: .9rem; font-weight: 650; }
+    .chip svg { width: 16px; height: 16px; flex: none; }
+    .figures { display: grid; gap: 18px; grid-template-columns: 1fr; }
+    .figure h2 { font-size: .85rem; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: rgb(255 255 255 / .75); display: grid; gap: 2px; }
+    .figure .value { font-size: clamp(1.9rem, 8vw, 2.6rem); font-weight: 780; letter-spacing: -.02em; color: #fff; text-transform: none; line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .figure .value.date { font-size: clamp(1.4rem, 6vw, 1.9rem); }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .msg { display: none; border-radius: 14px; padding: 12px 14px; font-weight: 600; font-size: .95rem; }
+    .msg.show { display: block; }
+    .msg.ok { background: rgb(255 255 255 / .16); color: #fff; }
+    .msg.warn { background: var(--gold); color: #3a2600; }
+    @media (min-width: 560px) {
+      .figures { grid-template-columns: 1.2fr 1fr; align-items: start; }
+      .hero { padding: 30px; }
+    }
+
+    /* ---------- cards ---------- */
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+    .card > h3 { font-size: 1.1rem; font-weight: 720; margin-bottom: 14px; }
+
+    .steps { list-style: none; padding: 0; display: grid; gap: 16px; counter-reset: s; }
+    .steps li { display: grid; grid-template-columns: 34px 1fr; gap: 14px; align-items: start; counter-increment: s; }
+    .steps li::before { content: counter(s); width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: var(--on-brand); font-weight: 750; display: grid; place-items: center; }
+    .steps b { display: block; }
+    .steps span { color: var(--muted); font-size: .95rem; }
+
+    .facts { display: grid; gap: 12px; grid-template-columns: 1fr; }
+    @media (min-width: 560px) { .facts { grid-template-columns: repeat(3, 1fr); } }
+    .fact { background: var(--surface-2); border-radius: 14px; padding: 16px; }
+    .fact svg { width: 26px; height: 26px; color: var(--brand); margin-bottom: 8px; }
+    .fact b { display: block; margin-bottom: 2px; }
+    .fact span { color: var(--muted); font-size: .92rem; }
+
+    .note { background: var(--gold-soft); color: var(--gold-ink); border-radius: 14px; padding: 14px 16px; font-size: .93rem; display: flex; gap: 10px; }
+    .note svg { width: 20px; height: 20px; flex: none; margin-top: 2px; }
+
+    /* ---------- records table ---------- */
+    .tablewrap { overflow-x: auto; margin: 0 -6px; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 460px; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 650; }
+    td.amt, th.amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+    td.code { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; }
+    tbody tr:last-child td { border-bottom: none; }
+    td.none { text-align: center; color: var(--muted); padding: 26px 10px; white-space: normal; }
+
+    /* ---------- pop-up dialogs ---------- */
+    dialog { border: none; border-radius: 22px; padding: 0; width: min(460px, calc(100vw - 24px)); background: var(--surface); color: var(--ink); box-shadow: 0 24px 70px rgb(0 0 0 / .4); max-height: 94vh; }
+    dialog::backdrop { background: rgb(8 18 14 / .6); }
+    .dlg { padding: 24px; display: grid; gap: 16px; }
+    .dlg h3 { font-size: 1.3rem; font-weight: 750; letter-spacing: -.01em; }
+    .dlg .lead { color: var(--muted); font-size: .95rem; }
+    .field { display: grid; gap: 6px; }
+    .field label { font-weight: 650; font-size: .95rem; }
+    .field .hint { color: var(--muted); font-size: .85rem; }
+    input { font: inherit; color: var(--ink); background: var(--surface); width: 100%; min-height: 50px; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; }
+    input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); }
+    input.code { text-transform: uppercase; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
+    .err { color: var(--danger); font-size: .92rem; font-weight: 600; min-height: 1.3em; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .row > button { flex: 1 1 140px; }
+    .paybox { background: var(--surface-2); border-radius: 16px; padding: 18px; display: grid; gap: 4px; text-align: center; }
+    .paybox .small { color: var(--muted); font-size: .9rem; }
+    .paybox .big { font-size: 1.9rem; font-weight: 800; letter-spacing: .04em; font-variant-numeric: tabular-nums; user-select: all; }
+    .paybox .who { font-size: 1.15rem; font-weight: 700; }
+    .how { margin: 0; padding-left: 20px; color: var(--muted); font-size: .93rem; display: grid; gap: 4px; }
+
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="bar">
+      <div class="brand">
+        <svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f5c43"/><path d="M176 232v-52a80 80 0 0 1 160 0v52" fill="none" stroke="#f2a30f" stroke-width="36" stroke-linecap="round"/><rect x="132" y="224" width="248" height="190" rx="40" fill="#f2a30f"/><circle cx="256" cy="304" r="26" fill="#0f5c43"/><rect x="244" y="310" width="24" height="56" rx="12" fill="#0f5c43"/></svg>
+        Lock Cash
+      </div>
+      <button type="button" class="btn-ghost">Download App</button>
+    </div>
+  </header>
+
+  <main>
+    <div>
+      <h2 class="greeting">Welcome back "name"</h2>
+      <p class="sub">Here is a summary of your locked savings.</p>
+    </div>
+
+    <section class="hero" aria-label="Savings summary">
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M6 10h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/></svg>
+        <span id="status">No savings yet</span>
+      </div>
+
+      <div class="figures">
+        <div class="figure">
+          <h2>Balance: <span class="value" id="balance">KES 0</span></h2>
+        </div>
+        <div class="figure">
+          <h2>Due Date: <span class="value date" id="due">Not set</span></h2>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn-primary" id="save-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Save
+        </button>
+        <button type="button" class="btn-outline" id="withdraw-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5m0 0l-4 4m4-4l4 4"/></svg>
+          Withdraw
+        </button>
+      </div>
+
+      <p class="msg" id="message" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="records">
+      <h3 id="records">Your savings</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Date saved</th><th class="amt">Amount (KES)</th><th>M-Pesa code</th><th>Due date</th></tr>
+          </thead>
+          <tbody id="records-body">
+            <tr><td class="none" colspan="4">Nothing saved yet. Tap Save to start.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="how">
+      <h3 id="how">How your savings work</h3>
+      <ol class="steps">
+        <li><div><b>Save</b><span>Choose an amount and a due date, send the money by M-Pesa, then enter the confirmation code.</span></div></li>
+        <li><div><b>Your money is locked</b><span>Your savings stay locked until the due date you chose.</span></div></li>
+        <li><div><b>Withdraw on your due date</b><span>Once the due date arrives, tap Withdraw to request your money.</span></div></li>
+      </ol>
+    </section>
+
+    <section class="card" aria-labelledby="safe">
+      <h3 id="safe">Good to know</h3>
+      <div class="facts">
+        <div class="fact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10V7a5 5 0 0 1 10 0v3M6 10h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z"/></svg>
+          <b>Locked by design</b><span>Withdrawals stay closed until the due date you chose.</span>
+        </div>
+        <div class="fact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 8.2-8 9-4.8-.8-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <b>Every saving recorded</b><span>Each amount is kept with its M-Pesa code.</span>
+        </div>
+        <div class="fact">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+          <b>Paid to M-Pesa</b><span>Withdrawals go to your M-Pesa number.</span>
+        </div>
+      </div>
+    </section>
+
+    <p class="note">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      <span>Never share your M-Pesa PIN or password with anyone.</span>
+    </p>
+  </main>
+
+  <!-- Pop-up used for every step of "Save" (inputs only, no form element) -->
+  <dialog id="dlg" aria-labelledby="dlg-title"></dialog>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // ---- Settings --------------------------------------------------------
+      const POCHI_NUMBER = '0715672799';
+      const POCHI_NAME = 'winslaus';
+      const MAX_AMOUNT = 250000;          // M-Pesa single-transaction limit
+      const STORE_KEY = 'lockcash.savings.v1';
+
+      // ---- Helpers ---------------------------------------------------------
+      const $ = (id) => document.getElementById(id);
+      const pad = (n) => String(n).padStart(2, '0');
+      const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;   // local date, e.g. 2026-12-31
+      const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+      const fmtDate = (d) => (typeof d === 'string' && d.length === 10 ? parseYmd(d) : new Date(d))
+        .toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
+      const kes = (n) => 'KES ' + Number(n).toLocaleString('en-KE');
+      const el = (tag, props = {}, ...kids) => {
+        const e = document.createElement(tag);
+        for (const [k, v] of Object.entries(props)) {
+          if (v == null || v === false) continue;
+          if (k === 'text') e.textContent = v; else if (k === 'class') e.className = v; else e.setAttribute(k, v === true ? '' : v);
+        }
+        e.append(...kids.flat().filter((x) => x != null && x !== false));
+        return e;
+      };
+
+      // ---- Saved records (kept in this browser; a backend can replace this later) ----
+      const isRecord = (r) => r && Number.isInteger(r.amount) && typeof r.code === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.due) && typeof r.saved === 'string';
+      let records = [];
+      try { const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); records = Array.isArray(raw) ? raw.filter(isRecord) : []; } catch (e) { records = []; }
+      const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); } catch (e) { /* storage blocked: records stay in memory */ } };
+
+      const balance = () => records.reduce((sum, r) => sum + r.amount, 0);
+      const dueDate = () => records.reduce((latest, r) => (r.due > latest ? r.due : latest), '');   // '' when nothing saved
+      const hasMatured = () => dueDate() !== '' && ymd(new Date()) >= dueDate();
+      const daysUntil = (due) => Math.ceil((parseYmd(due) - parseYmd(ymd(new Date()))) / 86400000);
+
+      // ---- Page display ------------------------------------------------------
+      function showMessage(text, kind) {
+        const m = $('message');
+        m.textContent = text;
+        m.className = 'msg show ' + kind;
+      }
+
+      function render() {
+        const due = dueDate();
+        $('balance').textContent = kes(balance());
+        $('due').textContent = due ? fmtDate(due) : 'Not set';
+        $('status').textContent = !due ? 'No savings yet'
+          : hasMatured() ? 'Matured: ready to withdraw'
+          : `Locked until ${fmtDate(due)}`;
+
+        const body = $('records-body');
+        body.replaceChildren();
+        if (!records.length) {
+          body.append(el('tr', {}, el('td', { class: 'none', colspan: '4', text: 'Nothing saved yet. Tap Save to start.' })));
+          return;
+        }
+        [...records].reverse().forEach((r) => body.append(el('tr', {},
+          el('td', { text: fmtDate(r.saved) }),
+          el('td', { class: 'amt', text: r.amount.toLocaleString('en-KE') }),
+          el('td', { class: 'code', text: r.code }),
+          el('td', { text: fmtDate(r.due) }))));
+      }
+
+      // ---- Save: pop-up steps (1 amount + due date -> 2 send money -> 3 M-Pesa code) ----
+      const dlg = $('dlg');
+      let draft = null;
+
+      const show = (...nodes) => { dlg.replaceChildren(el('div', { class: 'dlg' }, ...nodes)); if (!dlg.open) dlg.showModal(); };
+      const onEnter = (input, button) => input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); button.click(); } });
+      const cancelBtn = () => el('button', { type: 'button', class: 'btn-plain' }, 'Cancel');
+
+      function stepAmount() {
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        const current = dueDate();
+        const minDue = current && current > ymd(tomorrow) ? current : ymd(tomorrow);
+
+        const amount = el('input', { id: 'in-amount', type: 'number', inputmode: 'numeric', min: '1', max: String(MAX_AMOUNT), step: '1', placeholder: 'e.g. 5000', value: draft.amount || '' });
+        const due = el('input', { id: 'in-due', type: 'date', min: minDue, value: draft.due || '' });
+        const err = el('p', { class: 'err', role: 'alert' });
+        const next = el('button', { type: 'button', class: 'btn-solid' }, 'Continue');
+        const cancel = cancelBtn(); cancel.addEventListener('click', () => dlg.close());
+
+        next.addEventListener('click', () => {
+          const a = Number(amount.value);
+          if (amount.value === '' || !Number.isInteger(a) || a < 1) { err.textContent = 'Enter the amount you want to save, in whole shillings.'; amount.focus(); return; }
+          if (a > MAX_AMOUNT) { err.textContent = `M-Pesa allows up to ${kes(MAX_AMOUNT)} per payment.`; amount.focus(); return; }
+          if (!due.value) { err.textContent = 'Choose the due date: the day your money becomes available.'; due.focus(); return; }
+          if (due.value < minDue) { err.textContent = current && minDue === current ? `Your savings are already locked until ${fmtDate(current)}. Choose that date or a later one.` : 'The due date must be tomorrow or later.'; due.focus(); return; }
+          draft.amount = a; draft.due = due.value;
+          stepPay();
+        });
+        onEnter(amount, next); onEnter(due, next);
+
+        show(
+          el('h3', { id: 'dlg-title', text: 'Save money' }),
+          el('p', { class: 'lead', text: 'Your money stays locked until the due date you choose.' }),
+          el('div', { class: 'field' }, el('label', { for: 'in-amount', text: 'How much do you want to save? (KES)' }), amount),
+          el('div', { class: 'field' }, el('label', { for: 'in-due', text: 'Due date' }), due,
+            el('span', { class: 'hint', text: current ? `You already have savings locked until ${fmtDate(current)}.` : 'You cannot withdraw before this date.' })),
+          err,
+          el('div', { class: 'row' }, next, cancel));
+        amount.focus();
+      }
+
+      function stepPay() {
+        const next = el('button', { type: 'button', class: 'btn-solid' }, 'I have sent the money');
+        const back = el('button', { type: 'button', class: 'btn-plain' }, 'Back');
+        back.addEventListener('click', stepAmount);
+        next.addEventListener('click', stepCode);
+        show(
+          el('h3', { id: 'dlg-title', text: 'Send the money' }),
+          el('div', { class: 'paybox' },
+            el('span', { class: 'small', text: `Send ${kes(draft.amount)} by M-Pesa to` }),
+            el('span', { class: 'big', text: POCHI_NUMBER }),
+            el('span', { class: 'who', text: `Name: ${POCHI_NAME}` })),
+          el('ol', { class: 'how' },
+            el('li', { text: 'Open M-Pesa and choose Pochi la Biashara (or Send Money).' }),
+            el('li', { text: `Enter ${POCHI_NUMBER} and the amount ${draft.amount.toLocaleString('en-KE')}.` }),
+            el('li', { text: `Check that the name shown is ${POCHI_NAME}, then enter your PIN.` }),
+            el('li', { text: 'Wait for the M-Pesa confirmation SMS. It has a code you will need next.' })),
+          el('div', { class: 'row' }, next, back));
+      }
+
+      function stepCode() {
+        const code = el('input', { id: 'in-code', type: 'text', class: 'code', maxlength: '10', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', placeholder: 'e.g. UK12AB3CDE', value: draft.code || '' });
+        const err = el('p', { class: 'err', role: 'alert' });
+        const save = el('button', { type: 'button', class: 'btn-solid' }, 'Save');
+        const back = el('button', { type: 'button', class: 'btn-plain' }, 'Back');
+        back.addEventListener('click', stepPay);
+
+        save.addEventListener('click', () => {
+          const c = code.value.trim().toUpperCase();
+          draft.code = c;
+          if (!/^[A-Z0-9]{10}$/.test(c)) { err.textContent = 'The M-Pesa code has 10 letters and numbers. Copy it from the confirmation SMS.'; code.focus(); return; }
+          if (records.some((r) => r.code === c)) { err.textContent = 'That M-Pesa code has already been saved.'; code.focus(); return; }
+          records.push({ id: Date.now(), saved: new Date().toISOString(), amount: draft.amount, code: c, due: draft.due });
+          persist();
+          render();
+          showMessage(`Saved ${kes(draft.amount)}. It is locked until ${fmtDate(draft.due)}.`, 'ok');
+          draft = null;
+          dlg.close();
+        });
+        onEnter(code, save);
+
+        show(
+          el('h3', { id: 'dlg-title', text: 'Enter the M-Pesa code' }),
+          el('p', { class: 'lead', text: `Paste or type the code from the M-Pesa SMS for your ${kes(draft.amount)} payment.` }),
+          el('div', { class: 'field' }, el('label', { for: 'in-code', text: 'M-Pesa confirmation code' }), code),
+          err,
+          el('div', { class: 'row' }, save, back));
+        code.focus();
+      }
+
+      $('save-btn').addEventListener('click', () => { draft = {}; stepAmount(); });
+      dlg.addEventListener('close', () => { draft = null; });
+
+      // ---- Withdraw: only once the due date has been reached --------------------
+      $('withdraw-btn').addEventListener('click', () => {
+        const due = dueDate();
+        if (!due) return showMessage('You have no savings to withdraw yet. Tap Save to get started.', 'warn');
+        if (hasMatured()) return showMessage('Your withdrawal request has been received and is being processed.', 'ok');
+        const days = daysUntil(due);
+        showMessage(`Your savings have not matured yet. You can withdraw from ${fmtDate(due)} (${days === 1 ? '1 day' : days + ' days'} to go).`, 'warn');
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
