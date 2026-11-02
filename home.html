@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,7 +45,7 @@
 
     /* ---------- page ---------- */
     main { max-width: 760px; margin: 0 auto; padding: 24px 16px 56px; display: grid; gap: 20px; }
-    main > * { min-width: 0; }   /* lets the records table scroll inside its card instead of widening the page */
+    main > * { min-width: 0; }
     .greeting { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 750; letter-spacing: -.02em; line-height: 1.2; }
     .sub { color: var(--muted); margin-top: 4px; }
 
@@ -112,11 +113,16 @@
 
     /* ---------- records table ---------- */
     .tablewrap { overflow-x: auto; margin: 0 -6px; }
-    table { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 460px; }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; min-width: 560px; }
     th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
     th { color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 650; }
     td.amt, th.amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
     td.code { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; }
+    .payment-badge { display: inline-block; border-radius: 999px; padding: 4px 9px; font-size: .8rem; font-weight: 700; }
+    .payment-pending { background: var(--gold-soft); color: var(--gold-ink); }
+    .payment-verified { background: #dff3e7; color: #145c38; }
+    .payment-rejected { background: #fbe5e3; color: #92251e; }
+    .reason { display: block; max-width: 180px; white-space: normal; color: var(--danger); font-size: .8rem; margin-top: 4px; }
     tbody tr:last-child td { border-bottom: none; }
     td.none { text-align: center; color: var(--muted); padding: 26px 10px; white-space: normal; }
 
@@ -169,7 +175,10 @@
 
       <div class="figures">
         <div class="figure">
-          <h2>Balance: <span class="value" id="balance">KES 0</span></h2>
+          <h2>Verified balance: <span class="value" id="balance">KES 0</span></h2>
+        </div>
+        <div class="figure">
+          <h2>Pending verification: <span class="value" id="pending-balance">KES 0</span></h2>
         </div>
         <div class="figure">
           <h2>Due Date: <span class="value date" id="due">Not set</span></h2>
@@ -195,10 +204,10 @@
       <div class="tablewrap">
         <table>
           <thead>
-            <tr><th>Date saved</th><th class="amt">Amount (KES)</th><th>M-Pesa code</th><th>Due date</th><th>Status</th></tr>
+            <tr><th>Date saved</th><th class="amt">Amount (KES)</th><th>M-Pesa code</th><th>Due date</th><th>Payment status</th><th>Lock status</th></tr>
           </thead>
           <tbody id="records-body">
-            <tr><td class="none" colspan="5">Nothing saved yet. Tap Save to start.</td></tr>
+            <tr><td class="none" colspan="6">Nothing saved yet. Tap Save to start.</td></tr>
           </tbody>
         </table>
       </div>
@@ -207,9 +216,9 @@
     <section class="card" aria-labelledby="how">
       <h3 id="how">How your savings work</h3>
       <ol class="steps">
-        <li><div><b>Save</b><span>Choose an amount and a due date, send the money by M-Pesa, then enter the confirmation code.</span></div></li>
-        <li><div><b>Your money is locked</b><span>Your savings stay locked until the due date you chose.</span></div></li>
-        <li><div><b>Withdraw on your due date</b><span>Once the due date arrives, tap Withdraw to request your money.</span></div></li>
+        <li><div><b>Save</b><span>Choose an amount and a due date, send the money by M-Pesa, then enter the confirmation code. Your payment will be pending until an administrator verifies it.</span></div></li>
+        <li><div><b>Your money is locked</b><span>Verified savings stay locked until the due date you chose.</span></div></li>
+        <li><div><b>Withdraw on your due date</b><span>Once the due date arrives and all payments are verified, tap Withdraw to record a withdrawal request.</span></div></li>
       </ol>
     </section>
 
@@ -226,7 +235,7 @@
         </div>
         <div class="fact">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
-          <b>Paid to M-Pesa</b><span>Withdrawals go to your M-Pesa number.</span>
+          <b>Withdrawal processing</b><span>When savings mature and payments are verified, the app records your withdrawal request. Actual M-Pesa payout is handled separately.</span>
         </div>
       </div>
     </section>
@@ -237,7 +246,6 @@
     </p>
   </main>
 
-  <!-- Pop-up used for every step of "Save" (inputs only, no form element) -->
   <dialog id="dlg" aria-labelledby="dlg-title"></dialog>
 
   <script>
@@ -247,14 +255,14 @@
       // ---- Settings --------------------------------------------------------
       const POCHI_NUMBER = '0715672799';
       const POCHI_NAME = 'winslaus';
-      const MAX_AMOUNT = 250000;          // M-Pesa single-transaction limit
+      const MAX_AMOUNT = 250000;
       const user = await LockCash.requireLogin();
       if (!user) return;
 
       // ---- Helpers ---------------------------------------------------------
       const $ = (id) => document.getElementById(id);
       const pad = (n) => String(n).padStart(2, '0');
-      const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;   // local date, e.g. 2026-12-31
+      const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
       const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
       const fmtDate = (d) => (typeof d === 'string' && d.length === 10 ? parseYmd(d) : new Date(d))
         .toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -263,65 +271,102 @@
         const e = document.createElement(tag);
         for (const [k, v] of Object.entries(props)) {
           if (v == null || v === false) continue;
-          if (k === 'text') e.textContent = v; else if (k === 'class') e.className = v; else e.setAttribute(k, v === true ? '' : v);
+          if (k === 'text') e.textContent = v;
+          else if (k === 'class') e.className = v;
+          else e.setAttribute(k, v === true ? '' : v);
         }
         e.append(...kids.flat().filter((x) => x != null && x !== false));
         return e;
       };
 
-      // ---- Saved records (stored in Supabase, so they follow you across devices) ----
+      // ---- Saved records ---------------------------------------------------
       let records = [];
       let loadError = '';
       try { records = await LockCash.loadSavings(); } catch (e) { loadError = e.message; }
 
       const active = () => records.filter((r) => !r.withdrawn);
-      const balance = () => active().reduce((sum, r) => sum + r.amount, 0);
-      const dueDate = () => active().reduce((latest, r) => (r.due > latest ? r.due : latest), '');   // '' when nothing saved
+      const paymentStatus = (r) => ['pending', 'verified', 'rejected'].includes(String(r.paymentStatus || '').toLowerCase())
+        ? String(r.paymentStatus).toLowerCase() : 'pending';
+      const verifiedActive = () => active().filter((r) => paymentStatus(r) === 'verified');
+      const pendingActive = () => active().filter((r) => paymentStatus(r) === 'pending');
+      const rejectedActive = () => active().filter((r) => paymentStatus(r) === 'rejected');
+      const balance = () => verifiedActive().reduce((sum, r) => sum + Number(r.amount || 0), 0);
+      const pendingBalance = () => pendingActive().reduce((sum, r) => sum + Number(r.amount || 0), 0);
+      const allActiveVerified = () => active().length > 0 && active().every((r) => paymentStatus(r) === 'verified');
+      const dueDate = () => active().reduce((latest, r) => (r.due > latest ? r.due : latest), '');
       const hasMatured = () => dueDate() !== '' && ymd(new Date()) >= dueDate();
       const daysUntil = (due) => Math.ceil((parseYmd(due) - parseYmd(ymd(new Date()))) / 86400000);
 
-      // ---- Page display ------------------------------------------------------
+      // ---- Page display ----------------------------------------------------
       function showMessage(text, kind) {
         const m = $('message');
         m.textContent = text;
         m.className = 'msg show ' + kind;
       }
 
-      const status = (r) => (r.withdrawn ? 'Withdrawn' : r.due <= ymd(new Date()) ? 'Ready' : 'Locked');
+      const lockStatus = (r) => (r.withdrawn ? 'Withdrawn' : r.due <= ymd(new Date()) ? 'Matured' : 'Locked');
 
       function render() {
         $('user-name').textContent = user.name || user.phone;
         const due = dueDate();
         $('balance').textContent = kes(balance());
+        $('pending-balance').textContent = kes(pendingBalance());
         $('due').textContent = due ? fmtDate(due) : 'Not set';
-        $('status').textContent = !due ? 'No savings yet'
-          : hasMatured() ? 'Matured: ready to withdraw'
-          : `Locked until ${fmtDate(due)}`;
+
+        const pendingCount = pendingActive().length;
+        const rejectedCount = rejectedActive().length;
+        $('status').textContent = !active().length ? 'No active savings'
+          : rejectedCount ? `${rejectedCount} payment${rejectedCount === 1 ? '' : 's'} rejected`
+          : pendingCount ? `${pendingCount} payment${pendingCount === 1 ? '' : 's'} awaiting verification`
+          : hasMatured() ? 'Verified savings matured'
+          : `Verified savings locked until ${fmtDate(due)}`;
 
         const body = $('records-body');
         body.replaceChildren();
         if (!records.length) {
-          body.append(el('tr', {}, el('td', { class: 'none', colspan: '5', text: 'Nothing saved yet. Tap Save to start.' })));
+          body.append(el('tr', {}, el('td', { class: 'none', colspan: '6', text: 'Nothing saved yet. Tap Save to start.' })));
           return;
         }
-        [...records].reverse().forEach((r) => body.append(el('tr', {},
-          el('td', { text: fmtDate(r.saved) }),
-          el('td', { class: 'amt', text: r.amount.toLocaleString('en-KE') }),
-          el('td', { class: 'code', text: r.code }),
-          el('td', { text: fmtDate(r.due) }),
-          el('td', { text: status(r) }))));
+
+        [...records].reverse().forEach((r) => {
+          const pStatus = paymentStatus(r);
+          const paymentCell = el('td', {},
+            el('span', {
+              class: `payment-badge payment-${pStatus}`,
+              text: pStatus.charAt(0).toUpperCase() + pStatus.slice(1)
+            }));
+
+          if (pStatus === 'rejected' && r.rejectionReason) {
+            paymentCell.append(el('span', { class: 'reason', text: r.rejectionReason }));
+          }
+
+          body.append(el('tr', {},
+            el('td', { text: fmtDate(r.saved) }),
+            el('td', { class: 'amt', text: Number(r.amount).toLocaleString('en-KE') }),
+            el('td', { class: 'code', text: r.code }),
+            el('td', { text: fmtDate(r.due) }),
+            paymentCell,
+            el('td', { text: lockStatus(r) })
+          ));
+        });
       }
 
-      // ---- Save: pop-up steps (1 amount + due date -> 2 send money -> 3 M-Pesa code) ----
+      // ---- Save: amount + due date -> send money -> M-Pesa code ------------
       const dlg = $('dlg');
       let draft = null;
 
-      const show = (...nodes) => { dlg.replaceChildren(el('div', { class: 'dlg' }, ...nodes)); if (!dlg.open) dlg.showModal(); };
-      const onEnter = (input, button) => input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); button.click(); } });
+      const show = (...nodes) => {
+        dlg.replaceChildren(el('div', { class: 'dlg' }, ...nodes));
+        if (!dlg.open) dlg.showModal();
+      };
+      const onEnter = (input, button) => input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); button.click(); }
+      });
       const cancelBtn = () => el('button', { type: 'button', class: 'btn-plain' }, 'Cancel');
 
       function stepAmount() {
-        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
         const current = dueDate();
         const minDue = current && current > ymd(tomorrow) ? current : ymd(tomorrow);
 
@@ -329,27 +374,54 @@
         const due = el('input', { id: 'in-due', type: 'date', min: minDue, value: draft.due || '' });
         const err = el('p', { class: 'err', role: 'alert' });
         const next = el('button', { type: 'button', class: 'btn-solid' }, 'Continue');
-        const cancel = cancelBtn(); cancel.addEventListener('click', () => dlg.close());
+        const cancel = cancelBtn();
+        cancel.addEventListener('click', () => dlg.close());
 
         next.addEventListener('click', () => {
           const a = Number(amount.value);
-          if (amount.value === '' || !Number.isInteger(a) || a < 1) { err.textContent = 'Enter the amount you want to save, in whole shillings.'; amount.focus(); return; }
-          if (a > MAX_AMOUNT) { err.textContent = `M-Pesa allows up to ${kes(MAX_AMOUNT)} per payment.`; amount.focus(); return; }
-          if (!due.value) { err.textContent = 'Choose the due date: the day your money becomes available.'; due.focus(); return; }
-          if (due.value < minDue) { err.textContent = current && minDue === current ? `Your savings are already locked until ${fmtDate(current)}. Choose that date or a later one.` : 'The due date must be tomorrow or later.'; due.focus(); return; }
-          draft.amount = a; draft.due = due.value;
+          if (amount.value === '' || !Number.isInteger(a) || a < 1) {
+            err.textContent = 'Enter the amount you want to save, in whole shillings.';
+            amount.focus();
+            return;
+          }
+          if (a > MAX_AMOUNT) {
+            err.textContent = `M-Pesa allows up to ${kes(MAX_AMOUNT)} per payment.`;
+            amount.focus();
+            return;
+          }
+          if (!due.value) {
+            err.textContent = 'Choose the due date: the day your money becomes available.';
+            due.focus();
+            return;
+          }
+          if (due.value < minDue) {
+            err.textContent = current && minDue === current
+              ? `Your savings are already locked until ${fmtDate(current)}. Choose that date or a later one.`
+              : 'The due date must be tomorrow or later.';
+            due.focus();
+            return;
+          }
+          draft.amount = a;
+          draft.due = due.value;
           stepPay();
         });
-        onEnter(amount, next); onEnter(due, next);
+
+        onEnter(amount, next);
+        onEnter(due, next);
 
         show(
           el('h3', { id: 'dlg-title', text: 'Save money' }),
           el('p', { class: 'lead', text: 'Your money stays locked until the due date you choose.' }),
-          el('div', { class: 'field' }, el('label', { for: 'in-amount', text: 'How much do you want to save? (KES)' }), amount),
-          el('div', { class: 'field' }, el('label', { for: 'in-due', text: 'Due date' }), due,
+          el('div', { class: 'field' },
+            el('label', { for: 'in-amount', text: 'How much do you want to save? (KES)' }),
+            amount),
+          el('div', { class: 'field' },
+            el('label', { for: 'in-due', text: 'Due date' }),
+            due,
             el('span', { class: 'hint', text: current ? `You already have savings locked until ${fmtDate(current)}.` : 'You cannot withdraw before this date.' })),
           err,
-          el('div', { class: 'row' }, next, cancel));
+          el('div', { class: 'row' }, next, cancel)
+        );
         amount.focus();
       }
 
@@ -358,6 +430,7 @@
         const back = el('button', { type: 'button', class: 'btn-plain' }, 'Back');
         back.addEventListener('click', stepAmount);
         next.addEventListener('click', stepCode);
+
         show(
           el('h3', { id: 'dlg-title', text: 'Send the money' }),
           el('div', { class: 'paybox' },
@@ -369,7 +442,8 @@
             el('li', { text: `Enter ${POCHI_NUMBER} and the amount ${draft.amount.toLocaleString('en-KE')}.` }),
             el('li', { text: `Check that the name shown is ${POCHI_NAME}, then enter your PIN.` }),
             el('li', { text: 'Wait for the M-Pesa confirmation SMS. It has a code you will need next.' })),
-          el('div', { class: 'row' }, next, back));
+          el('div', { class: 'row' }, next, back)
+        );
       }
 
       function stepCode() {
@@ -382,43 +456,79 @@
         save.addEventListener('click', async () => {
           const c = code.value.trim().toUpperCase();
           draft.code = c;
-          if (!/^[A-Z0-9]{10}$/.test(c)) { err.textContent = 'The M-Pesa code has 10 letters and numbers. Copy it from the confirmation SMS.'; code.focus(); return; }
-          if (records.some((r) => r.code === c)) { err.textContent = 'That M-Pesa code has already been saved.'; code.focus(); return; }
+          if (!/^[A-Z0-9]{10}$/.test(c)) {
+            err.textContent = 'The M-Pesa code has 10 letters and numbers. Copy it from the confirmation SMS.';
+            code.focus();
+            return;
+          }
+          if (records.some((r) => r.code === c)) {
+            err.textContent = 'That M-Pesa code has already been saved.';
+            code.focus();
+            return;
+          }
+
           const d = { ...draft };
           save.disabled = true;
           const res = await LockCash.addSaving({ amount: d.amount, code: c, due: d.due });
-          if (res.error) { save.disabled = false; err.textContent = res.error; return; }
+          if (res.error) {
+            save.disabled = false;
+            err.textContent = res.error;
+            return;
+          }
+
           try { records = await LockCash.loadSavings(); } catch (e) { /* shown on next load */ }
           render();
-          showMessage(`Saved ${kes(d.amount)}. It is locked until ${fmtDate(d.due)}.`, 'ok');
+          showMessage(`${kes(d.amount)} submitted. Your payment is pending admin verification; the savings will count toward your verified balance once approved.`, 'ok');
           draft = null;
           dlg.close();
         });
+
         onEnter(code, save);
 
         show(
           el('h3', { id: 'dlg-title', text: 'Enter the M-Pesa code' }),
           el('p', { class: 'lead', text: `Paste or type the code from the M-Pesa SMS for your ${kes(draft.amount)} payment.` }),
-          el('div', { class: 'field' }, el('label', { for: 'in-code', text: 'M-Pesa confirmation code' }), code),
+          el('div', { class: 'field' },
+            el('label', { for: 'in-code', text: 'M-Pesa confirmation code' }),
+            code),
           err,
-          el('div', { class: 'row' }, save, back));
+          el('div', { class: 'row' }, save, back)
+        );
         code.focus();
       }
 
-      $('save-btn').addEventListener('click', () => { draft = {}; stepAmount(); });
+      $('save-btn').addEventListener('click', () => {
+        draft = {};
+        stepAmount();
+      });
       dlg.addEventListener('close', () => { draft = null; });
 
-      // ---- Withdraw: only once the due date has been reached --------------------
+      // ---- Withdraw: all active payments must be verified and matured ------
       $('withdraw-btn').addEventListener('click', async () => {
         const due = dueDate();
-        if (!due) return showMessage('You have no savings to withdraw yet. Tap Save to get started.', 'warn');
+
+        if (!due) {
+          return showMessage('You have no savings to withdraw yet. Tap Save to get started.', 'warn');
+        }
+        if (rejectedActive().length) {
+          return showMessage('At least one payment was rejected. Contact the administrator to resolve it before withdrawing.', 'warn');
+        }
+        if (pendingActive().length) {
+          return showMessage('Some payments are still pending verification. You can withdraw only after the administrator verifies every active payment.', 'warn');
+        }
+        if (!allActiveVerified()) {
+          return showMessage('There are no verified active savings available to withdraw.', 'warn');
+        }
+
         if (hasMatured()) {
           const res = await LockCash.withdrawAll();
           if (res.error) return showMessage(res.error, 'warn');
+
           try { records = await LockCash.loadSavings(); } catch (e) { /* ignore */ }
           render();
-          return showMessage(`Withdrawal of ${kes(res.total)} requested. It will be sent to ${user.phone} by M-Pesa.`, 'ok');
+          return showMessage(`Withdrawal of ${kes(res.total)} has been recorded. This app does not send the M-Pesa payout automatically; contact the administrator for payout arrangements.`, 'ok');
         }
+
         const days = daysUntil(due);
         showMessage(`Your savings have not matured yet. You can withdraw from ${fmtDate(due)} (${days === 1 ? '1 day' : days + ' days'} to go).`, 'warn');
       });
