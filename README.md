@@ -1,8 +1,12 @@
 # Lock Cash (practice project)
-Static savings-lock app. No server, no paid services. Data lives in the browser (localStorage).
+Static front end on GitHub Pages + free Supabase backend (auth + Postgres). Data syncs across devices.
 
-Run locally: `python3 -m http.server 8000` then open http://localhost:8000
-Host free: GitHub Pages (Settings > Pages > deploy from main branch).
+## Setup (once)
+1. supabase.com > New project (free, no card).
+2. SQL Editor > paste `supabase/setup.sql` > Run.
+3. Authentication > Providers > Email: turn OFF "Confirm email".
+4. Project Settings > API: copy the Project URL and the anon (or publishable) key into `js/config.js`.
+5. Push to GitHub; Settings > Pages > deploy from `main` / root.
 
-Edit `POCHI_NUMBER` / `POCHI_NAME` at the top of the script in home.html.
-Limits: accounts and savings are per-browser and M-Pesa codes are not verified. A real version needs a backend.
+Never put the service_role key in this repo. Edit POCHI_NUMBER / POCHI_NAME in home.html.
+Limits: M-Pesa codes are format-checked only, and withdrawals are recorded but not actually paid out.

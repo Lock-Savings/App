@@ -7,6 +7,8 @@
   <title>Home · Lock Cash</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/auth.js"></script>
   <style>
     :root {
@@ -239,16 +241,15 @@
   <dialog id="dlg" aria-labelledby="dlg-title"></dialog>
 
   <script>
-    (() => {
+    (async () => {
       'use strict';
 
       // ---- Settings --------------------------------------------------------
       const POCHI_NUMBER = '0715672799';
       const POCHI_NAME = 'winslaus';
       const MAX_AMOUNT = 250000;          // M-Pesa single-transaction limit
-      const user = LockCash.requireLogin();
+      const user = await LockCash.requireLogin();
       if (!user) return;
-      const STORE_KEY = 'lockcash.savings.v1.' + user.phone;   // each account keeps its own savings
 
       // ---- Helpers ---------------------------------------------------------
       const $ = (id) => document.getElementById(id);
@@ -268,11 +269,10 @@
         return e;
       };
 
-      // ---- Saved records (kept in this browser; a backend can replace this later) ----
-      const isRecord = (r) => r && Number.isInteger(r.amount) && typeof r.code === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.due) && typeof r.saved === 'string';
+      // ---- Saved records (stored in Supabase, so they follow you across devices) ----
       let records = [];
-      try { const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); records = Array.isArray(raw) ? raw.filter(isRecord) : []; } catch (e) { records = []; }
-      const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); } catch (e) { /* storage blocked: records stay in memory */ } };
+      let loadError = '';
+      try { records = await LockCash.loadSavings(); } catch (e) { loadError = e.message; }
 
       const active = () => records.filter((r) => !r.withdrawn);
       const balance = () => active().reduce((sum, r) => sum + r.amount, 0);
@@ -379,15 +379,18 @@
         const back = el('button', { type: 'button', class: 'btn-plain' }, 'Back');
         back.addEventListener('click', stepPay);
 
-        save.addEventListener('click', () => {
+        save.addEventListener('click', async () => {
           const c = code.value.trim().toUpperCase();
           draft.code = c;
           if (!/^[A-Z0-9]{10}$/.test(c)) { err.textContent = 'The M-Pesa code has 10 letters and numbers. Copy it from the confirmation SMS.'; code.focus(); return; }
           if (records.some((r) => r.code === c)) { err.textContent = 'That M-Pesa code has already been saved.'; code.focus(); return; }
-          records.push({ id: Date.now(), saved: new Date().toISOString(), amount: draft.amount, code: c, due: draft.due });
-          persist();
+          const d = { ...draft };
+          save.disabled = true;
+          const res = await LockCash.addSaving({ amount: d.amount, code: c, due: d.due });
+          if (res.error) { save.disabled = false; err.textContent = res.error; return; }
+          try { records = await LockCash.loadSavings(); } catch (e) { /* shown on next load */ }
           render();
-          showMessage(`Saved ${kes(draft.amount)}. It is locked until ${fmtDate(draft.due)}.`, 'ok');
+          showMessage(`Saved ${kes(d.amount)}. It is locked until ${fmtDate(d.due)}.`, 'ok');
           draft = null;
           dlg.close();
         });
@@ -406,14 +409,15 @@
       dlg.addEventListener('close', () => { draft = null; });
 
       // ---- Withdraw: only once the due date has been reached --------------------
-      $('withdraw-btn').addEventListener('click', () => {
+      $('withdraw-btn').addEventListener('click', async () => {
         const due = dueDate();
         if (!due) return showMessage('You have no savings to withdraw yet. Tap Save to get started.', 'warn');
         if (hasMatured()) {
-          const amt = balance(), now = new Date().toISOString();
-          records.forEach((r) => { if (!r.withdrawn) r.withdrawn = now; });
-          persist(); render();
-          return showMessage(`Withdrawal of ${kes(amt)} requested. It will be sent to ${user.phone} by M-Pesa.`, 'ok');
+          const res = await LockCash.withdrawAll();
+          if (res.error) return showMessage(res.error, 'warn');
+          try { records = await LockCash.loadSavings(); } catch (e) { /* ignore */ }
+          render();
+          return showMessage(`Withdrawal of ${kes(res.total)} requested. It will be sent to ${user.phone} by M-Pesa.`, 'ok');
         }
         const days = daysUntil(due);
         showMessage(`Your savings have not matured yet. You can withdraw from ${fmtDate(due)} (${days === 1 ? '1 day' : days + ' days'} to go).`, 'warn');
@@ -421,6 +425,7 @@
 
       $('logout-btn').addEventListener('click', LockCash.logOut);
       render();
+      if (loadError) showMessage('Could not load your savings: ' + loadError, 'warn');
     })();
   </script>
 </body>
