@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0f5c43">
-  <title>Home Page</title>
+  <title>Home · Lock Cash</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
+  <script src="js/auth.js"></script>
   <style>
     :root {
       --bg: #f2f5f2; --surface: #ffffff; --surface-2: #eaf0ec;
@@ -146,13 +149,13 @@
         <svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#0f5c43"/><path d="M176 232v-52a80 80 0 0 1 160 0v52" fill="none" stroke="#f2a30f" stroke-width="36" stroke-linecap="round"/><rect x="132" y="224" width="248" height="190" rx="40" fill="#f2a30f"/><circle cx="256" cy="304" r="26" fill="#0f5c43"/><rect x="244" y="310" width="24" height="56" rx="12" fill="#0f5c43"/></svg>
         Lock Cash
       </div>
-      <button type="button" class="btn-ghost">Download App</button>
+      <button type="button" class="btn-ghost" id="logout-btn">Log out</button>
     </div>
   </header>
 
   <main>
     <div>
-      <h2 class="greeting">Welcome back "name"</h2>
+      <h2 class="greeting">Welcome back, <span id="user-name"></span></h2>
       <p class="sub">Here is a summary of your locked savings.</p>
     </div>
 
@@ -190,10 +193,10 @@
       <div class="tablewrap">
         <table>
           <thead>
-            <tr><th>Date saved</th><th class="amt">Amount (KES)</th><th>M-Pesa code</th><th>Due date</th></tr>
+            <tr><th>Date saved</th><th class="amt">Amount (KES)</th><th>M-Pesa code</th><th>Due date</th><th>Status</th></tr>
           </thead>
           <tbody id="records-body">
-            <tr><td class="none" colspan="4">Nothing saved yet. Tap Save to start.</td></tr>
+            <tr><td class="none" colspan="5">Nothing saved yet. Tap Save to start.</td></tr>
           </tbody>
         </table>
       </div>
@@ -243,7 +246,9 @@
       const POCHI_NUMBER = '0715672799';
       const POCHI_NAME = 'winslaus';
       const MAX_AMOUNT = 250000;          // M-Pesa single-transaction limit
-      const STORE_KEY = 'lockcash.savings.v1';
+      const user = LockCash.requireLogin();
+      if (!user) return;
+      const STORE_KEY = 'lockcash.savings.v1.' + user.phone;   // each account keeps its own savings
 
       // ---- Helpers ---------------------------------------------------------
       const $ = (id) => document.getElementById(id);
@@ -269,8 +274,9 @@
       try { const raw = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); records = Array.isArray(raw) ? raw.filter(isRecord) : []; } catch (e) { records = []; }
       const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(records)); } catch (e) { /* storage blocked: records stay in memory */ } };
 
-      const balance = () => records.reduce((sum, r) => sum + r.amount, 0);
-      const dueDate = () => records.reduce((latest, r) => (r.due > latest ? r.due : latest), '');   // '' when nothing saved
+      const active = () => records.filter((r) => !r.withdrawn);
+      const balance = () => active().reduce((sum, r) => sum + r.amount, 0);
+      const dueDate = () => active().reduce((latest, r) => (r.due > latest ? r.due : latest), '');   // '' when nothing saved
       const hasMatured = () => dueDate() !== '' && ymd(new Date()) >= dueDate();
       const daysUntil = (due) => Math.ceil((parseYmd(due) - parseYmd(ymd(new Date()))) / 86400000);
 
@@ -281,7 +287,10 @@
         m.className = 'msg show ' + kind;
       }
 
+      const status = (r) => (r.withdrawn ? 'Withdrawn' : r.due <= ymd(new Date()) ? 'Ready' : 'Locked');
+
       function render() {
+        $('user-name').textContent = user.name || user.phone;
         const due = dueDate();
         $('balance').textContent = kes(balance());
         $('due').textContent = due ? fmtDate(due) : 'Not set';
@@ -292,14 +301,15 @@
         const body = $('records-body');
         body.replaceChildren();
         if (!records.length) {
-          body.append(el('tr', {}, el('td', { class: 'none', colspan: '4', text: 'Nothing saved yet. Tap Save to start.' })));
+          body.append(el('tr', {}, el('td', { class: 'none', colspan: '5', text: 'Nothing saved yet. Tap Save to start.' })));
           return;
         }
         [...records].reverse().forEach((r) => body.append(el('tr', {},
           el('td', { text: fmtDate(r.saved) }),
           el('td', { class: 'amt', text: r.amount.toLocaleString('en-KE') }),
           el('td', { class: 'code', text: r.code }),
-          el('td', { text: fmtDate(r.due) }))));
+          el('td', { text: fmtDate(r.due) }),
+          el('td', { text: status(r) }))));
       }
 
       // ---- Save: pop-up steps (1 amount + due date -> 2 send money -> 3 M-Pesa code) ----
@@ -399,11 +409,17 @@
       $('withdraw-btn').addEventListener('click', () => {
         const due = dueDate();
         if (!due) return showMessage('You have no savings to withdraw yet. Tap Save to get started.', 'warn');
-        if (hasMatured()) return showMessage('Your withdrawal request has been received and is being processed.', 'ok');
+        if (hasMatured()) {
+          const amt = balance(), now = new Date().toISOString();
+          records.forEach((r) => { if (!r.withdrawn) r.withdrawn = now; });
+          persist(); render();
+          return showMessage(`Withdrawal of ${kes(amt)} requested. It will be sent to ${user.phone} by M-Pesa.`, 'ok');
+        }
         const days = daysUntil(due);
         showMessage(`Your savings have not matured yet. You can withdraw from ${fmtDate(due)} (${days === 1 ? '1 day' : days + ' days'} to go).`, 'warn');
       });
 
+      $('logout-btn').addEventListener('click', LockCash.logOut);
       render();
     })();
   </script>

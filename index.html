@@ -1,26 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign up · Lock Cash</title>
+  <meta name="theme-color" content="#0f5c43">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/app.css">
+  <script src="js/auth.js"></script>
 </head>
 <body>
-    <form action="">
-    <h1>SignUp Page</h1>
-    <label class="label">Phone number</label>
-    <input id= "number" class="input" max="12" min="12" type="number">
+  <main class="auth">
+    <div class="card">
+      <a class="brand" href="index.html"><img src="icons/logo.svg" alt="" width="30" height="30">Lock Cash</a>
+      <h1>Create your account</h1>
+      <p class="lead">Lock away savings until the date you choose.</p>
 
-    <label class="label">Password</label>
-    <input id= "Password" class="input" max="16" min="8" type="password">
+      <form id="signup-form" class="form" novalidate>
+        <div class="field">
+          <label for="name">Your name</label>
+          <input id="name" name="name" type="text" autocomplete="given-name" maxlength="40" required>
+        </div>
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0712 345 678" required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" data-pw autocomplete="new-password" minlength="8" maxlength="64" required>
+          <span class="hint">8 to 64 characters.</span>
+        </div>
+        <div class="field">
+          <label for="confirm">Confirm password</label>
+          <input id="confirm" name="confirm" type="password" data-pw autocomplete="new-password" maxlength="64" required>
+        </div>
+        <label class="row small"><input id="show-pw" type="checkbox" class="check"> Show passwords</label>
+        <div id="form-error" class="error" role="alert" tabindex="-1" hidden></div>
+        <button class="btn block" type="submit">Create account</button>
+      </form>
 
-    <label class="label">Confirm Password</label>
-    <input id= "Password" class="input" max="16" min="8" type="password">
-
-    <button >Create account</button>
-
-    <label>Already have account?</label>"
-    <a href="login.html">Login</a>
-    </form>
+      <p class="alt">Already have an account? <a href="login.html">Log in</a></p>
+    </div>
+  </main>
 </body>
 </html>

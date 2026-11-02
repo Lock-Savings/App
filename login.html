@@ -7,8 +7,8 @@
   <meta name="theme-color" content="#0f5c43">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/logo.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="css/app.css">
+  <script src="js/auth.js"></script>
 </head>
 <body>
   <main class="auth">
@@ -20,26 +20,19 @@
       <form id="login-form" class="form" novalidate>
         <div class="field">
           <label for="phone">Phone number</label>
-          <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0712 345 678" pattern="[0-9+\s\-]{9,16}" required>
+          <input id="phone" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="0712 345 678" required>
         </div>
-
         <div class="field">
           <label for="password">Password</label>
           <input id="password" name="password" type="password" data-pw autocomplete="current-password" maxlength="64" required>
         </div>
-
-        <label class="row small">
-          <input id="show-pw" type="checkbox" class="check"> Show password
-        </label>
-
+        <label class="row small"><input id="show-pw" type="checkbox" class="check"> Show password</label>
         <div id="form-error" class="error" role="alert" tabindex="-1" hidden></div>
-        <a href="home.html" class="btn block" type="submit">Log in</a>
+        <button class="btn block" type="submit">Log in</button>
       </form>
 
       <p class="alt">New here? <a href="index.html">Create an account</a></p>
-      <p class="alt small">Forgot your password? Call support and we will reset it for you.</p>
     </div>
   </main>
-  <div id="site-footer"></div>
 </body>
 </html>
