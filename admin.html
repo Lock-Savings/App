@@ -88,10 +88,17 @@
     .pending { color: #a66300; font-weight: bold; }
     .verified { color: #0f7a43; font-weight: bold; }
     .rejected { color: #b3261e; font-weight: bold; }
+    .approved, .paid { color: #0f7a43; font-weight: bold; }
 
     .small {
       font-size: 12px;
       color: #666;
+    }
+
+    .withdrawal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
   </style>
 </head>
@@ -150,6 +157,27 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2>Withdrawal requests</h2>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Type</th>
+              <th>Amount (KSh)</th>
+              <th>Status</th>
+              <th>Requested</th>
+              <th>Decision</th>
+            </tr>
+          </thead>
+          <tbody id="withdrawal-requests"></tbody>
+        </table>
+      </div>
+    </div>
+
   </section>
 
 </main>
@@ -169,6 +197,7 @@
   const dashboard = document.getElementById('dashboard');
   const usersSelect = document.getElementById('users');
   const savingsBody = document.getElementById('savings');
+  const withdrawalRequestsBody = document.getElementById('withdrawal-requests');
 
   let selectedUser = '';
 
@@ -276,6 +305,114 @@
     showMessage(
       'Loaded ' + (data || []).length + ' users.'
     );
+  }
+
+  async function loadWithdrawalRequests() {
+    const { data, error } = await sb.rpc('admin_list_withdrawal_requests');
+
+    if (error) {
+      showMessage('Withdrawal requests could not be loaded: ' + error.message, true);
+      return;
+    }
+
+    withdrawalRequestsBody.innerHTML = '';
+
+    if (!data || data.length === 0) {
+      withdrawalRequestsBody.innerHTML = '<tr><td colspan="7">No withdrawal requests yet.</td></tr>';
+      return;
+    }
+
+    data.forEach(request => {
+      const row = document.createElement('tr');
+      const userLabel = [request.user_name, request.user_phone].filter(Boolean).join(' · ')
+        || (request.user_id ? String(request.user_id).slice(0, 8) : 'Unknown');
+
+      const typeCell = makeCell(request.request_type === 'partial' ? 'Partial' : 'Full');
+      const statusCell = makeCell(request.status || 'pending');
+      statusCell.className = request.status || 'pending';
+
+      const actionCell = document.createElement('td');
+      const actions = document.createElement('div');
+      actions.className = 'withdrawal-actions';
+      const approvalReady = Date.now() >= new Date(request.created_at).getTime() + 72 * 60 * 60 * 1000;
+
+      const approveButton = document.createElement('button');
+      approveButton.textContent = 'Approve';
+      approveButton.disabled = request.status !== 'pending' || !approvalReady;
+      if (!approvalReady && request.status === 'pending') {
+        approveButton.title = 'Approval is available 72 hours after the request.';
+      }
+
+      const rejectButton = document.createElement('button');
+      rejectButton.textContent = 'Reject';
+      rejectButton.className = 'reject';
+      rejectButton.disabled = request.status !== 'pending';
+
+      const paidButton = document.createElement('button');
+      paidButton.textContent = 'Record payout';
+      paidButton.disabled = request.status !== 'approved';
+
+      const updateStatus = async (nextStatus, notes = null) => {
+        const { error: updateError } = await sb.rpc('review_withdrawal_request', {
+          p_request_id: request.id,
+          p_status: nextStatus,
+          p_notes: notes
+        });
+
+        if (updateError) {
+          showMessage('Could not update withdrawal request: ' + updateError.message, true);
+          return;
+        }
+
+        request.status = nextStatus;
+        if (nextStatus === 'paid') {
+          request.paid_at = new Date().toISOString();
+          request.notes = notes || 'Manual payout recorded by admin';
+        } else {
+          request.reviewed_by = user.id;
+          request.reviewed_at = new Date().toISOString();
+          request.notes = notes || (nextStatus === 'rejected' ? 'Rejected by admin' : 'Approved by admin');
+        }
+
+        statusCell.textContent = nextStatus;
+        statusCell.className = nextStatus;
+        approveButton.disabled = true;
+        rejectButton.disabled = true;
+        paidButton.disabled = true;
+
+        showMessage(nextStatus === 'paid'
+          ? 'Payout recorded for withdrawal request ' + request.id + '.'
+          : 'Withdrawal request ' + request.id + ' marked as ' + nextStatus + '.');
+      };
+
+      approveButton.onclick = () => updateStatus('approved');
+      rejectButton.onclick = () => updateStatus('rejected');
+      paidButton.onclick = () => {
+        const reference = prompt('Enter the M-Pesa payout confirmation code:');
+        if (!reference || !reference.trim()) {
+          showMessage('A payout confirmation code is required.', true);
+          return;
+        }
+        if (confirm('Confirm that the M-Pesa payout was sent?')) {
+          updateStatus('paid', 'M-Pesa payout reference: ' + reference.trim());
+        }
+      };
+
+      actions.append(approveButton, rejectButton, paidButton);
+      actionCell.appendChild(actions);
+
+      row.append(
+        makeCell(request.id),
+        makeCell(userLabel),
+        typeCell,
+        makeCell(request.amount),
+        statusCell,
+        makeCell(new Date(request.created_at).toLocaleString()),
+        actionCell
+      );
+
+      withdrawalRequestsBody.appendChild(row);
+    });
   }
 
   // Load savings for selected user
@@ -714,6 +851,12 @@
   document.getElementById('load-user')
     .addEventListener('click', loadSavings);
 
+  document.getElementById('users').addEventListener('change', () => {
+    if (usersSelect.value) {
+      loadSavings();
+    }
+  });
+
   document.getElementById('logout')
     .addEventListener('click', async () => {
 
@@ -724,6 +867,7 @@
     });
 
   await loadUsers();
+  await loadWithdrawalRequests();
 
 })();
 </script>

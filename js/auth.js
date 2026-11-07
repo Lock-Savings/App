@@ -200,6 +200,42 @@
       };
     },
 
+    async requestWithdrawal({ type, amount }) {
+      if (!sb) return { error: NOT_READY };
+
+      const mode = String(type || '').toLowerCase();
+      const requested = Number(amount);
+
+      if (!['full', 'partial'].includes(mode)) {
+        return { error: 'Choose a full or partial withdrawal request.' };
+      }
+
+      if (mode === 'partial' && (!Number.isInteger(requested) || requested <= 0)) {
+        return { error: 'Enter a valid whole-shilling amount to withdraw.' };
+      }
+
+      const { data, error } = await sb.rpc('request_withdrawal', {
+        p_request_type: mode,
+        p_amount: mode === 'partial' ? requested : null
+      });
+
+      return error
+        ? { error: friendly(error.message) }
+        : { ok: true, id: data };
+    },
+
+    async loadWithdrawalRequests() {
+      if (!sb) throw new Error(NOT_READY);
+
+      const { data, error } = await sb
+        .from('withdrawal_requests')
+        .select('amount, status');
+
+      if (error) throw new Error(friendly(error.message));
+
+      return data || [];
+    },
+
     async withdrawAll() {
       if (!sb) return { error: NOT_READY };
 
