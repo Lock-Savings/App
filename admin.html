@@ -201,6 +201,11 @@
 
   let selectedUser = '';
 
+  document.getElementById('logout').addEventListener('click', async () => {
+    await sb.auth.signOut();
+    location.replace('login.html');
+  });
+
   function showMessage(text, error = false) {
     message.textContent = text;
     message.className = error ? 'error' : 'success';
@@ -247,16 +252,16 @@
     await sb.rpc('is_admin');
 
   if (adminError || !isAdmin) {
-    adminName.textContent = 'Access denied';
+    adminName.textContent = adminError
+      ? 'Could not verify administrator access'
+      : 'Access denied';
 
     showMessage(
-      'This account is not an administrator.',
+      adminError
+        ? 'The administrator check failed: ' + adminError.message
+        : 'This account (' + user.email + ') is not an administrator. Ask the project owner to grant this account admin access.',
       true
     );
-
-    await sb.auth.signOut();
-
-    location.replace('login.html');
     return;
   }
 
@@ -856,15 +861,6 @@
       loadSavings();
     }
   });
-
-  document.getElementById('logout')
-    .addEventListener('click', async () => {
-
-      await sb.auth.signOut();
-
-      location.replace('login.html');
-
-    });
 
   await loadUsers();
   await loadWithdrawalRequests();
