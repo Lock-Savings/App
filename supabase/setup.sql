@@ -59,7 +59,7 @@ begin
   end if;
 
   return query
-    select u.id, u.email
+    select u.id::uuid, u.email::text
     from auth.users u
     order by u.email asc;
 end;
@@ -166,17 +166,17 @@ begin
   end if;
 
   return query
-    select wr.id,
-           wr.user_id,
-           coalesce(u.raw_user_meta_data->>'phone', u.phone, u.email, ''),
-           coalesce(u.raw_user_meta_data->>'name', ''),
-           wr.request_type,
-           wr.amount,
-           wr.status,
-           wr.created_at,
-           wr.reviewed_at,
-           wr.paid_at,
-           wr.notes
+    select wr.id::bigint,
+           wr.user_id::uuid,
+           coalesce(u.raw_user_meta_data->>'phone', u.phone, u.email, '')::text,
+           coalesce(u.raw_user_meta_data->>'name', '')::text,
+           wr.request_type::text,
+           wr.amount::integer,
+           wr.status::text,
+           wr.created_at::timestamptz,
+           wr.reviewed_at::timestamptz,
+           wr.paid_at::timestamptz,
+           wr.notes::text
     from public.withdrawal_requests wr
     join auth.users u on u.id = wr.user_id
     order by wr.created_at desc;
